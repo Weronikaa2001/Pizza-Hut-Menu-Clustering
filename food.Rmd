@@ -1,0 +1,239 @@
+---
+title: "Pizza Hut Menu Clustering"
+author: "Weronika Mądro"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+Fast food has become an integral part of modern society, offering convenient, affordable and tasty meal options. With the rapid growth of the fast-food industry, consumers are now faced with an overwhelming variety of menu items from different brands, each varying in nutritional content, ingredients and portion sizes. In this project, I will conduct a clustering analysis on a dataset featuring nutritional information from a variety of fast-food items at Pizza Hut resaturants. The goal is to uncover significant patterns and gain deeper insights into the nutritional characteristics of fast-food offerings.
+
+## Clustering algorithms
+
+Clustering in general is an unsupervised machine learning technique used to group data points into distinct categories or clusters based on their similarities. It helps identify hidden patterns, relationships or structures within a dataset without prior knowledge of the group labels. By measuring the similarity or distance between data points clustering creates meaningful groups where items within the same cluster are more alike than those in different clusters.
+
+## Project overview
+
+The dataset used for the project is "Fast Food Nutrition" from Kaggle (https://www.kaggle.com/datasets/joebeachcapital/fast-food). It focuses on nutritional values, including calories and micro-nutrients from six of the largest and most popular fast food restaurants: McDonald's, Burger King, Wendy's, Kentucky Fried Chicken (KFC), Taco Bell and Pizza Hut. Despite the dataset covering six companies, I chose to focus only on Pizza Hut, as hierarchical clustering with data from all companies would be overly complex and visually unintelligible. Attributes included are calories, calories from fat, total fat, saturated fat, trans fat, cholesterol, sodium, carbs, fiber, sugars, protein, and weight watchers points (where available). 
+
+## Preprocessing
+
+First of all, the file needs to be read and inspected.
+```{r}
+food <- read.csv("FastFoodNutritionMenuV3.csv")
+food <- food[1074:1147, c(1:3, 5:13)]
+head(food,1)
+str(food)
+colnames(food) <- c("Brand","Item", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10")
+library(corrplot)
+food_data = food[,-c(1, 2)]
+str(food_data)
+```
+The structure of dataset show the "character" variables, it should be "numeric", so it has to be fixed. 
+```{r}
+food_data$V1 <- as.numeric(gsub("[^0-9.]", "", food_data$V1))
+food_data$V2 <- as.numeric(gsub("[^0-9.]", "", food_data$V2))
+food_data$V3 <- as.numeric(gsub("[^0-9.]", "", food_data$V3))
+food_data$V4 <- as.numeric(gsub("[^0-9.]", "", food_data$V4))
+food_data$V5 <- as.numeric(gsub("[^0-9.]", "", food_data$V5))
+food_data$V6 <- as.numeric(gsub("[^0-9.]", "", food_data$V6))
+food_data$V7 <- as.numeric(gsub("[^0-9.]", "", food_data$V7))
+food_data$V8 <- as.numeric(gsub("[^0-9.]", "", food_data$V8))
+food_data$V9 <- as.numeric(gsub("[^0-9.]", "", food_data$V9))
+food_data$V10 <- as.numeric(gsub("[^0-9.]", "", food_data$V10))
+str(food_data)
+```
+Since the data is provided in different units, it needs to be standarized to ensure that the results obtained can be considered reliable.
+```{r}
+food_data_scaled <- scale(food_data)
+food_data_scaled <- na.omit(food_data_scaled)
+```
+The next step involves analyzing the relationships between the variables.
+```{r}
+food_matrix <- data.matrix(food_data_scaled, rownames.force = NA)
+F <- cor(food_matrix)
+corrplot(F, method = "number", number.cex = 0.75, order="hclust")
+```
+According to the correlation matrix, the data mostly seem to be highly correlated.
+
+## Test for clusterability of data - Hopkins statistics
+The Hopkins statistic is a valuable tool in the context of clustering, as it helps to assess the clustering tendency of a dataset before applying any clustering algorithms.In simple words it tells how well the data can be clustered. Hopkins statistic close to 0 indicates that the data is highly random and not suitable for clustering. A value close to 0.5 suggests that the data is likely randomly distributed, with no clear clustering structure. In contrast, a value near 1 indicates a strong clustering tendency, meaning the data points are more likely to be grouped together, making it suitable for clustering analysis.
+
+```{r}
+library(hopkins)
+library(factoextra)
+data <- food_data_scaled
+get_clust_tendency(data, 2, graph=TRUE, gradient=list(low="red", mid="white", high="blue"))
+```
+The obtained result indicates a high tendency of the data to cluster.
+
+
+## Optimal number of clusters 
+After confirming the clustering tendency of the dataset using, the next crucial step is to determine the optimal number of clusters. 
+
+Silhouette analysis can be used to evaluate how well-separated the resulting clusters are from each other. It measures the distance between data points within the same cluster and compares it to the distance to points in neighbouring clusters, providing insight into the quality of the clustering structure.The silhouette score ranges from -1 to 1. Value close to 1 indicates that the data points are well-clustered, value close to 0 indicates the data points are on or near the decision boundary between clusters and value close to -1 indicates that the data points might be misclassified into incorrect clusters. 
+
+```{r}
+library(gridExtra)
+a <- fviz_nbclust(data, FUNcluster = kmeans, method = "silhouette") + theme_classic() 
+b <- fviz_nbclust(data, FUNcluster = cluster::pam, method = "silhouette") + theme_classic() 
+c <- fviz_nbclust(data, FUNcluster = cluster::clara, method = "silhouette") + theme_classic() 
+d <- fviz_nbclust(data, FUNcluster = hcut, method = "silhouette") + theme_classic()
+grid.arrange(a, b, c, d, ncol=2)
+```
+The silhouette index indicates that the most optimal number of clusters for k-means is either 2 or 3, as the values are close and it is challenging to clearly determine the better option. For PAM, CLARA and hierarchical clustering it's 2. 
+
+After evaluating the optimal number of clusters using the silhouette statistic, the WSS (within-cluster sum of squares) statistic will be applied to verify if it provides the same results or reveals slight differences.
+
+```{r}
+library(cluster)
+a <- fviz_nbclust(data, kmeans, method = "wss") + ggtitle("k-means")
+b <- fviz_nbclust(data, pam, method = "wss") + ggtitle("pam")
+c <- fviz_nbclust(data, clara, method = "wss") +ggtitle("clara")
+d <- fviz_nbclust(data, hcut, method = "wss") +ggtitle("hierarchical clustering")
+grid.arrange(a,b,c,d, ncol=2, top = "Optimal number of clusters")
+```
+Based on both the silhouette and WSS statistics, the optimal number of clusters is consistently identified as 2 for all clustering methods.
+
+Additionaly, the clValid function in R is used for validating clustering methods, helping to identify the most suitable one for a given dataset. This function evaluates clustering quality using metrics such as the Silhouette width and Dunn's Index.Both indices help in assessing the performance of clustering methods.
+
+```{r}
+food_numeric <- food_data[, -c(1, 2)]
+library(clValid)
+clmethods <- c("hierarchical","kmeans","pam","clara")
+internal <- clValid(food_data, nClust = 2:30, clMethods = clmethods, validation = "internal", maxitems = 100000)
+summary(internal)
+```
+
+## K-means
+The k-means algorithm is a popular clustering method that partitions data into a predefined number of clusters by minimizing the variance within each cluster. It assigns each data point to the nearest centroid, then recalculates centroids iteratively until convergence.
+
+### 2 clusters
+
+```{r}
+library(factoextra)
+km2 <- eclust(data, k=2 , FUNcluster="kmeans", hc_metric="euclidean", graph=FALSE)
+c2 <- fviz_cluster(km2, data=food_data, elipse.type="convex", geom=c("point")) + ggtitle("K-means")
+s2 <- fviz_silhouette(km2)
+grid.arrange(c2, s2, ncol=2)
+```
+
+### 3 clusters
+
+Just to be sure, let's check 3 clusters. 
+```{r}
+km3 <- eclust(data, k=3 , FUNcluster="kmeans", hc_metric="euclidean", graph=FALSE)
+c3 <- fviz_cluster(km3, data=food_data, elipse.type="convex", geom=c("point")) + ggtitle("K-means")
+s3 <- fviz_silhouette(km3)
+grid.arrange(c3, s3, ncol=2)
+```
+It seems that the 2-cluster solution offers better-defined clusters, as indicated by the higher Silhouette score. 3 clusters may lead to overfitting or misclassification.
+
+## PAM
+The Partitioning Around Medoids (PAM) method is a clustering algorithm that aims to divide data into clusters by selecting representative data points, known as medoids, as the centers of each cluster. Unlike k-means, PAM is more robust to outliers since it uses actual data points as cluster centers instead of computing centroids.
+```{r}
+pam2 <- eclust(data, k=2 , FUNcluster="pam", hc_metric="euclidean", graph=FALSE)
+cp2 <- fviz_cluster(pam2, data=DATA, elipse.type="convex", geom=c("point")) + ggtitle("PAM")
+sp2 <- fviz_silhouette(pam2)
+grid.arrange(cp2, sp2, ncol=2)
+```
+
+The Silhouette scores for both K-means and PAM are quite close, indicating that both methods performed similarly in terms of how well the points are grouped within their clusters and separated from others.
+
+## CLARA
+
+CLARA  is a clustering method designed for large datasets, where it selects multiple samples, applies the k-medoids algorithm to each, and uses the best result to handle data efficiently while maintaining accuracy.
+```{r}
+clara2 <- eclust(data, k=2, FUNcluster="clara", hc_metric="euclidean", graph=FALSE)
+cc2 <- fviz_cluster(clara2, data=DATA, elipse.type="convex", geom=c("point")) + ggtitle("CLARA")
+sc2 <- fviz_silhouette(clara2)
+grid.arrange(cc2, sc2, ncol=2)
+
+```
+
+
+## Hierarchical clustering
+
+Hierarchical clustering is a method of grouping data into a hierarchy of clusters, either by successively merging smaller clusters (agglomerative) or dividing larger clusters (divisive). 
+
+### Agglomerative approach
+
+Single linkeage:
+```{r}
+hc <- eclust(data, k=2, FUNcluster="hclust", hc_metric="euclidean", hc_method = "single")
+plot(hc, cex=0.6, hang=-1, main = "Dendrogram of agglomerative hierarchical clustering")
+rect.hclust(hc, k=2)
+```
+The numbers are displayed on the graph instead of the food names because the food names were too long, making the graph unreadable.
+
+Complete linkeage:
+```{r}
+hc1 <- eclust(data, k=2, FUNcluster="hclust", hc_metric="euclidean", hc_method = "complete")
+plot(hc1, cex=0.6, hang=-1, main = "Dendrogram of agglomerative hierarchical clustering")
+rect.hclust(hc1, k=2)
+```
+
+Average linkeage:
+```{r}
+hc2 <- eclust(data, k=2, FUNcluster="hclust", hc_metric="euclidean", hc_method = "average")
+plot(hc2, cex=0.6, hang=-1, main = "Dendrogram of agglomerative hierarchical clustering")
+rect.hclust(hc2, k=2)
+```
+
+### Divisive approach
+
+```{r}
+hc3 <- eclust(data, k=2, FUNcluster="diana")
+pltree(hc3, cex = 0.6, hang = -1, main = "Dendrogram of DIANA")
+rect.hclust(hc3, k=2)
+```
+
+Next, there will be assessed the quality of the obtained divisions by calculating the inertia ratio.
+```{r}
+inertion_hclust <- matrix(0, nrow = 4, ncol = 4)
+colnames(inertion_hclust) <- c("Single Linkage", "Complete Linkage", "Average Linkage", "Divisive")
+rownames(inertion_hclust) <- c("Intra-clust", "Total", "Percentage", "Q")
+```
+
+Single Linkage
+```{r}
+library(ClustGeo)
+hclust_single <- cutree(hc, k = 2) 
+inertion_hclust[1, 1] <- withindiss(dist(data), part = hclust_single)  
+inertion_hclust[2, 1] <- inertdiss(dist(data))                        
+inertion_hclust[3, 1] <- inertion_hclust[1, 1] / inertion_hclust[2, 1] 
+inertion_hclust[4, 1] <- 1 - inertion_hclust[3, 1]                     
+```
+Complete Linkage
+```{r}
+hclust_complete <- cutree(hc1, k = 2) 
+inertion_hclust[1, 2] <- withindiss(dist(data), part = hclust_complete)  
+inertion_hclust[2, 2] <- inertdiss(dist(data))                            
+inertion_hclust[3, 2] <- inertion_hclust[1, 2] / inertion_hclust[2, 2]   
+inertion_hclust[4, 2] <- 1 - inertion_hclust[3, 2]                       
+```
+Average Linkage
+```{r}
+hclust_average <- cutree(hc2, k = 2)  
+inertion_hclust[1, 3] <- withindiss(dist(data), part = hclust_average)  
+inertion_hclust[2, 3] <- inertdiss(dist(data))                         
+inertion_hclust[3, 3] <- inertion_hclust[1, 3] / inertion_hclust[2, 3] 
+inertion_hclust[4, 3] <- 1 - inertion_hclust[3, 3]                    
+```
+Divisive (DIANA)
+```{r}
+diana_clusters <- cutree(hc3, k = 2) 
+inertion_hclust[1, 4] <- withindiss(dist(data), part = diana_clusters)  
+inertion_hclust[2, 4] <- inertdiss(dist(data))                         
+inertion_hclust[3, 4] <- inertion_hclust[1, 4] / inertion_hclust[2, 4] 
+inertion_hclust[4, 4] <- 1 - inertion_hclust[3, 4]                     
+
+inertion_hclust
+```
+The results for all methods are identical what suggests that the data might not exhibit strong enough differences for the methods to produce varying results.The dataset might not contain enough distinct clusters or variation, leading to similar results regardless of the method.Other explanation can be that the chosen number of clusters might not be optimal for distinguishing between different patterns in the data. After checking behind the project the values for different numbers of clusters, such as 3, the results varied, and the best method turned out to be single linkage for that case.
+
+## Coclusions
+In summary, the text data were clustered using various methods. Preprocessing played a crucial role, and multiple datasets were generated to achieve improved clustering outcomes. After evaluating the clustering methods using various metrics, it was found that k-means with two clusters produced the best results overall. 
