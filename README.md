@@ -21,3 +21,7 @@ The dataset used in this project contains detailed information about various Piz
 2. Once the project is cloned, navigate to the folder where the project is saved.
 3. Open the Pizza_Hut_Menu_Clustering.Rmd file in RStudio.
 4. Run the R Markdown file.
+
+OR
+
+visit: https://rpubs.com/weronika_madro/1284201
