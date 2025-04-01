@@ -15,3 +15,9 @@ The dataset used in this project contains detailed information about various Piz
 * Clustering Algorithms: K-means clustering, hierarchical clustering.
 * Evaluation Metrics: Silhouette analysis to determine the optimal number of clusters.
 * Data Visualization: Visualizing the clustering results using plots and dendrograms.
+
+## Steps to Open and Run the Project
+1. To get started, clone this repository to your local machine.
+2. Once the project is cloned, navigate to the folder where the project is saved.
+3. Open the Pizza_Hut_Menu_Clustering.Rmd file in RStudio.
+4. Run the R Markdown file.
